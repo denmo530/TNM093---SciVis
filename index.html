@@ -279,7 +279,11 @@ const volumeRenderingFragmentSource = `#version 300 es
           //
           //   @TODO: Implement the front-to-back compositing here
           //
-
+              result.rgb = (1.0 - result.a) * color.rgb * color.a + result.rgb; 
+              result.a = (1.0 - result.a) * color.a + result.a; 
+              
+              //Add the color to the incoming rays in result to implement
+                                      // The front to back compositing. 
 
 
 
@@ -288,9 +292,10 @@ const volumeRenderingFragmentSource = `#version 300 es
           //
           //   @TODO: Implement the first hitpoint compositing here
           //
-
-
-
+            if (color.a > 0.2){
+              result = color;
+              t = tEnd; 
+            }
 
 
         }
@@ -298,8 +303,10 @@ const volumeRenderingFragmentSource = `#version 300 es
           //
           //   @TODO: Implement the maximum-intensity projection here
           //
-
-
+          
+          if (color.a > result.a) {
+            result = color; 
+          }
 
 
         }
@@ -443,6 +450,14 @@ function createProgram(gl, vertexSource, fragmentSource) {
   return program;
 }
 
+function hexToRgb(hex) {
+  var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : null;
+}
 
 
 /// This function is called when the transfer function texture on the GPU should be
@@ -462,6 +477,27 @@ function updateTransferFunction(gl, transferFunction) {
   // This data should, at the end of your code, contain the information for the transfer
   // function.  Each value is stored sequentially (RGBA,RGBA,RGBA,...) for 256 values,
   // which get mapped to [0, 1] by OpenGL
+
+  const hexColor1 = document.querySelector('input[name="color1"]').value; 
+  const hexColor2 = document.querySelector('input[name="color2"]').value; 
+  const hexColor3 = document.querySelector('input[name="color3"]').value; 
+
+  const colorRGB1 = hexToRgb(hexColor1); 
+  const colorRGB2 = hexToRgb(hexColor2); 
+  const colorRGB3 = hexToRgb(hexColor3); 
+
+  const range1 = Math.round(document.querySelector('input[name="range1"]').value); 
+  const range2 = Math.round(document.querySelector('input[name="range2"]').value); 
+  const range3 = Math.round(document.querySelector('input[name="range3"]').value); 
+
+  const start1 = Math.round(document.querySelector('input[name="start1"]').value); 
+  const start2 = Math.round(document.querySelector('input[name="start2"]').value); 
+  const start3 = Math.round(document.querySelector('input[name="start3"]').value); 
+
+  const alpha1 = document.querySelector('input[name="alpha1"]').value; 
+  const alpha2 = document.querySelector('input[name="alpha2"]').value;
+  const alpha3 = document.querySelector('input[name="alpha3"]').value;
+
   let data = new Uint8Array(256 * 4);
 
 
@@ -472,26 +508,58 @@ function updateTransferFunction(gl, transferFunction) {
   // relatively simple ramp with the first 50 values being set to 0 to reduce the noise in
   // the image.  The remainder of the ramp is just using different angles for the color
   // components
-  const cutoff = 50;
 
-  for (let i = 0; i < cutoff * 4; i += 4) {
+  for (let i = start1; i < (range1+start1); i += 4) {
     // Set RGBA all to 0
-    data[i] = 0;
-    data[i + 1] = 0;
-    data[i + 2] = 0;
-    data[i + 3] = 0;
-  }
 
-  // For now, just create a linear ramp from 0 to 1. We start at the cutoff value and fill
-  // the rest of the array
-  for (let i = cutoff * 4; i < 256 * 4; i += 4) {
-    // convert i into a value [0, 256] and set it 
-    const it = i / 4;
-    data[i] = 2 * it;
-    data[i + 1] = it;
-    data[i + 2] = 3 * it;
-    data[i + 3] = it;
+    data[i] = colorRGB1.r;
+    data[i + 1] = colorRGB1.g;
+    data[i + 2] =  colorRGB1.b;
+    data[i + 3] = alpha1;
   }
+  
+  for (let i = start2; i < range2+start2; i += 4) {
+    // Set RGBA all to 0
+   
+    data[i] = colorRGB2.r;
+    data[i + 1] = colorRGB2.g;
+    data[i + 2] =  colorRGB2.b;
+    data[i + 3] = alpha2;
+  } 
+
+  for (let i = start3; i < range3+start3;  i += 4) {
+    // convert i into a value [0, 256] and set it 
+    
+    data[i] = colorRGB3.r;
+    data[i + 1] = colorRGB3.g;
+    data[i + 2] =  colorRGB3.b;
+    data[i + 3] = alpha3;
+  }
+  
+  
+
+
+
+  // const cutoff = 50;
+
+  // for (let i = 0; i < cutoff * 4; i += 4) {
+  //   // Set RGBA all to 0
+  //   data[i] = 0;
+  //   data[i + 1] = 0;
+  //   data[i + 2] = 0;
+  //   data[i + 3] = 0;
+  // }
+
+  // // For now, just create a linear ramp from 0 to 1. We start at the cutoff value and fill
+  // // the rest of the array
+  // for (let i = cutoff * 4; i < 256 * 4; i += 4) {
+  //   // convert i into a value [0, 256] and set it 
+  //   const it = i / 4;
+  //   data[i] = 2 * it;
+  //   data[i + 1] = it;
+  //   data[i + 2] = 3 * it;
+  //   data[i + 3] = it;
+  // }
 
   /// End of the provided transfer function
   ////////////////////////////////////////////////////////////////////////////////////////
@@ -1010,6 +1078,33 @@ function postError(msg) {
       <div><input type="radio" name="compositing" value="mip" onchange="triggerRendering();">Maximum-intensity projection</div>
     </div>
   </p>
+  <div class="transferControls">
+    <div class="slider1">
+      <label for="color1">Color: </label>
+      <input type="color" name="color1" onchange="triggerTransferFunctionUpdate()">
+
+      <label for="alpha1">Alpha: </label>
+      <input type="range" name="alpha1" min="0" max="256" onchange="triggerTransferFunctionUpdate()">
+      
+      <label for="start1">Start: </label>
+      <input type="range" name="start1" min="0" max="256" onchange="triggerTransferFunctionUpdate()">
+      
+      <label for="range1">Range: </label>
+      <input type="range" name="range1" min="0" max="1024" onchange="triggerTransferFunctionUpdate()">
+    </div>
+    <div class="slider2">
+      <input type="color" name="color2">
+      <input type="range" name="alpha2" min="0" max="256" onchange="triggerTransferFunctionUpdate()">
+      <input type="range" name="start2" min="0" max="256" onchange="triggerTransferFunctionUpdate()">
+      <input type="range" name="range2" min="0" max="1024" onchange="triggerTransferFunctionUpdate()">
+    </div>
+    <div class="slider3">
+      <input type="color" name="color3">
+      <input type="range" name="alpha3" min="0" max="256" onchange="triggerTransferFunctionUpdate()">
+      <input type="range" name="start3" min="0" max="256" onchange="triggerTransferFunctionUpdate()">
+      <input type="range" name="range3" min="0" max="1024" onchange="triggerTransferFunctionUpdate()">
+    </div>
+  </div>
   <p>
     Camera
       <div> r: <input type="range" min="0" max="100" value="50" class="slider" id="camera-r" oninput="triggerRendering();"></div>
